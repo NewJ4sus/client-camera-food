@@ -38,6 +38,11 @@
             display: none;
         }
 
+        #zoomSlider {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
         button {
             display: block;
             width: 100%;
@@ -143,6 +148,7 @@
             <button id="searchButton">Найти</button>
         </div>
         <button id="startButton">Открыть камеру</button>
+        <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1">
         <div id="reader"></div>
         <div class="loading">Поиск информации о товаре...</div>
         <div id="result">

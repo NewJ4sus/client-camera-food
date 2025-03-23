@@ -40,7 +40,23 @@
 
         #zoomSlider {
             width: 100%;
-            margin-bottom: 20px;
+            margin: 5px 0;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            border-radius: 4px;
+            background: #3d3d3d;
+            outline: none;
+        }
+
+        #zoomSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
         }
 
         button {
@@ -138,6 +154,20 @@
                 width: 100%;
             }
         }
+
+        #zoomControl {
+            display: none;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #2d2d2d;
+            border-radius: 5px;
+        }
+
+        #zoomValue {
+            text-align: center;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -148,7 +178,10 @@
             <button id="searchButton">Найти</button>
         </div>
         <button id="startButton">Открыть камеру</button>
-        <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1">
+        <div id="zoomControl">
+            <input type="range" id="zoomSlider" min="1" max="1" step="0.1">
+            <div id="zoomValue">1x</div>
+        </div>
         <div id="reader"></div>
         <div class="loading">Поиск информации о товаре...</div>
         <div id="result">
@@ -171,6 +204,9 @@
         const historyItemsDiv = document.getElementById('historyItems');
         const barcodeInput = document.getElementById('barcodeInput');
         const searchButton = document.getElementById('searchButton');
+        const zoomControl = document.getElementById('zoomControl');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomValue = document.getElementById('zoomValue');
         
         // История сканирований
         let scanHistory = [];
@@ -204,6 +240,36 @@
 
         startButton.addEventListener('click', async () => {
             try {
+                // Получаем доступ к камере напрямую для управления зумом
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment"
+                    } 
+                });
+                currentStream = stream;
+
+                // Получаем возможности камеры
+                const track = stream.getVideoTracks()[0];
+                const capabilities = track.getCapabilities();
+
+                // Настраиваем слайдер зума, если камера поддерживает
+                if (capabilities.zoom) {
+                    zoomControl.style.display = 'block';
+                    zoomSlider.min = capabilities.zoom.min;
+                    zoomSlider.max = capabilities.zoom.max;
+                    zoomSlider.step = (capabilities.zoom.max - capabilities.zoom.min) / 100;
+                    zoomSlider.value = capabilities.zoom.min;
+                    zoomValue.textContent = '1x';
+
+                    zoomSlider.oninput = async () => {
+                        const zoomValue = parseFloat(zoomSlider.value);
+                        await track.applyConstraints({
+                            advanced: [{ zoom: zoomValue }]
+                        });
+                        zoomValue.textContent = `${zoomValue.toFixed(1)}x`;
+                    };
+                }
+
                 await html5QrCode.start(
                     { facingMode: "environment" },
                     {
@@ -245,6 +311,12 @@
                     }
                 });
             });
+
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            zoomControl.style.display = 'none';
         }
 
         async function onScanSuccess(decodedText, decodedResult) {
@@ -279,13 +351,6 @@
             // Можно добавить обработку ошибок сканирования
             console.warn(`Ошибка сканирования: ${error}`);
         }
-
-        // Обработчик изменения значения зума
-        zoomSlider.addEventListener('input', () => {
-            html5QrCode.updateConfiguration({
-                zoom: parseFloat(zoomSlider.value) // Обновляем зум
-            });
-        });
 
         async function fetchBarcodeInfo(barcode) {
             try {

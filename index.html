@@ -7,6 +7,135 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css">
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 30px;
+        }
+
+        #reader {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #result {
+            padding: 20px;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .product-info {
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+
+        .loading {
+            text-align: center;
+            display: none;
+            color: #4CAF50;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: rgba(255, 107, 107, 0.1);
+            margin-top: 10px;
+        }
+
+        .history {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+        }
+
+        .history h3 {
+            color: #4CAF50;
+            margin-top: 0;
+        }
+
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #3d3d3d;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .manual-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .manual-input input {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #2d2d2d;
+            color: white;
+            font-size: 16px;
+        }
+
+        .manual-input input:focus {
+            outline: 1px solid #4CAF50;
+        }
+
+        .manual-input button {
+            margin: 0;
+            width: auto;
+            padding: 15px 30px;
+        }
+
+        @media (max-width: 600px) {
+            .manual-input {
+                flex-direction: column;
+            }
+            
+            .manual-input button {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -16,7 +145,7 @@
             <button id="searchButton">Найти</button>
         </div>
         <button id="startButton">Открыть камеру</button>
-        
+        <div id="reader"></div>
         <div class="loading">Поиск информации о товаре...</div>
         <div id="result" class="result">
             <h2>Информация о товаре</h2>
@@ -28,21 +157,248 @@
         </div>
     </div>
 
-    <!-- Camera Modal -->
-    <div id="cameraModal" class="modal">
-        <div class="modal-header">
-            <h2>Сканирование штрих-кода</h2>
-            <button id="modalClose" class="modal-close">✕</button>
-        </div>
-        <div class="camera-container">
-            <div id="reader"></div>
-            <div class="zoom-controls">
-                <input type="range" id="zoomSlider" min="1" max="1" step="0.1">
-                <div id="zoomValue">1x</div>
-            </div>
-        </div>
-    </div>
+    <script>
+        const html5QrCode = new Html5Qrcode("reader");
+        const startButton = document.getElementById('startButton');
+        const resultDiv = document.getElementById('result');
+        const productInfoDiv = document.getElementById('productInfo');
+        const loadingDiv = document.querySelector('.loading');
+        const historyDiv = document.getElementById('history');
+        const historyItemsDiv = document.getElementById('historyItems');
+        const barcodeInput = document.getElementById('barcodeInput');
+        const searchButton = document.getElementById('searchButton');
+        
+        // История сканирований
+        let scanHistory = [];
 
-    <script src="./script.js"></script>
+        // Добавляем константу с URL сервера
+        const API_URL = 'http://192.168.0.14:3456/product/info';
+
+        // Обработчик для кнопки поиска
+        searchButton.addEventListener('click', async () => {
+            const barcode = barcodeInput.value.trim();
+            if (barcode) {
+                const productInfo = await fetchBarcodeInfo(barcode);
+                displayProductInfo(productInfo);
+            } else {
+                alert('Пожалуйста, введите штрих-код');
+            }
+        });
+
+        // Обработка Enter в поле ввода
+        barcodeInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchButton.click();
+            }
+        });
+
+        // Ограничиваем ввод только цифрами
+        barcodeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        });
+
+        startButton.addEventListener('click', async () => {
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 }
+                    },
+                    onScanSuccess,
+                    onScanFailure
+                );
+                startButton.textContent = 'Остановить сканер';
+                startButton.onclick = stopScanner;
+            } catch (err) {
+                console.error(err);
+                alert('Ошибка доступа к камере: ' + err);
+            }
+        });
+
+        function stopScanner() {
+            html5QrCode.stop().then(() => {
+                startButton.textContent = 'Открыть камеру';
+                startButton.onclick = startButton.addEventListener('click', async () => {
+                    try {
+                        await html5QrCode.start(
+                            { facingMode: "environment" },
+                            {
+                                fps: 10,
+                                qrbox: { width: 250, height: 250 }
+                            },
+                            onScanSuccess,
+                            onScanFailure
+                        );
+                        startButton.textContent = 'Остановить сканер';
+                        startButton.onclick = stopScanner;
+                    } catch (err) {
+                        console.error(err);
+                        alert('Ошибка доступа к камере: ' + err);
+                    }
+                });
+            });
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            // Останавливаем сканирование после успешного скана
+            html5QrCode.stop();
+            startButton.textContent = 'Открыть камеру';
+            startButton.onclick = startButton.addEventListener('click', async () => {
+                try {
+                    await html5QrCode.start(
+                        { facingMode: "environment" },
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 250 }
+                        },
+                        onScanSuccess,
+                        onScanFailure
+                    );
+                    startButton.textContent = 'Остановить сканер';
+                    startButton.onclick = stopScanner;
+                } catch (err) {
+                    console.error(err);
+                    alert('Ошибка доступа к камере: ' + err);
+                }
+            });
+
+            const productInfo = await fetchBarcodeInfo(decodedText);
+            displayProductInfo(productInfo);
+        }
+
+        function onScanFailure(error) {
+            // Можно добавить обработку ошибок сканирования
+            console.warn(`Ошибка сканирования: ${error}`);
+        }
+
+        async function fetchBarcodeInfo(barcode) {
+            try {
+                // Показываем состояние загрузки
+                loadingDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+
+                const url = `${API_URL}?barcode=${barcode}`;
+                console.log('Отправка запроса к URL:', url); // Отладочная информация
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    },
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                
+                console.log('Заголовки ответа:', Object.fromEntries(response.headers.entries())); // Отладочная информация
+                console.log('Статус ответа:', response.status, response.statusText); // Отладочная информация
+
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Получены данные:', data); // Отладочная информация
+                
+                if (data.success) {
+                    return {
+                        success: true,
+                        name: data.name,
+                        barcode: data.barcode
+                    };
+                } else {
+                    return {
+                        success: false,
+                        error: data.error || 'Товар не найден в базе данных'
+                    };
+                }
+
+            } catch (error) {
+                console.error("Полная информация об ошибке:", error); // Расширенная отладка
+                let errorMessage = 'Ошибка загрузки данных. ';
+                
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Не удалось подключиться к серверу. Убедитесь, что:\n';
+                    errorMessage += '1. Сервер запущен (node server.js)\n';
+                    errorMessage += '2. Сервер доступен по адресу http://localhost:3000\n';
+                    errorMessage += '3. Нет блокировки запросов в браузере (проверьте консоль разработчика)\n';
+                    errorMessage += '4. Отключите блокировщик рекламы для этой страницы';
+                } else if (error.message.includes('HTTP')) {
+                    errorMessage += `Ошибка сервера: ${error.message}`;
+                } else {
+                    errorMessage += `${error.name}: ${error.message}`;
+                }
+                
+                return {
+                    success: false,
+                    error: errorMessage
+                };
+            } finally {
+                // Скрываем состояние загрузки в любом случае
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        function displayProductInfo(productData) {
+            loadingDiv.style.display = 'none';
+            resultDiv.style.display = 'block';
+            
+            if (productData.success) {
+                // Добавляем в историю
+                addToHistory(productData);
+                
+                productInfoDiv.innerHTML = `
+                    <p><strong>Штрих-код:</strong> ${productData.barcode}</p>
+                    <p><strong>Название:</strong> ${productData.name}</p>
+                    <div style="margin-top: 15px; padding: 10px; background-color: #3d3d3d; border-radius: 5px;">
+                        <p style="margin: 0;"><small>* Данные предоставлены сервисом Barcode-list.ru</small></p>
+                        <p style="margin: 5px 0 0 0;"><small>Последнее обновление: ${new Date().toLocaleString()}</small></p>
+                    </div>
+                `;
+            } else {
+                productInfoDiv.innerHTML = `
+                    <div class="error-message">
+                        <p>${productData.error}</p>
+                        <p><small>Если ошибка повторяется, попробуйте:</small></p>
+                        <ul style="margin: 5px 0; padding-left: 20px;">
+                            <li><small>Обновить страницу</small></li>
+                            <li><small>Проверить подключение к интернету</small></li>
+                            <li><small>Подождать несколько секунд и повторить попытку</small></li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        function addToHistory(productData) {
+            // Добавляем новый скан в начало истории
+            scanHistory.unshift({
+                timestamp: new Date(),
+                ...productData
+            });
+            
+            // Ограничиваем историю 10 последними сканированиями
+            scanHistory = scanHistory.slice(0, 10);
+            
+            // Обновляем отображение истории
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            if (scanHistory.length > 0) {
+                historyDiv.style.display = 'block';
+                historyItemsDiv.innerHTML = scanHistory.map(item => `
+                    <div class="history-item">
+                        <p><strong>${item.name}</strong></p>
+                        <p><small>Штрих-код: ${item.barcode}</small></p>
+                        <p><small>Время: ${item.timestamp.toLocaleTimeString()}</small></p>
+                    </div>
+                `).join('');
+            }
+        }
+    </script>
 </body>
 </html>

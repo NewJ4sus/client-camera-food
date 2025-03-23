@@ -1,6 +1,6 @@
 class BarcodeScanner {
     constructor() {
-        this.html5QrCode = new Html5Qrcode("reader");
+        this.html5QrCode = null;
         this.initializeElements();
         this.initializeEventListeners();
         this.scanHistory = [];
@@ -22,7 +22,8 @@ class BarcodeScanner {
             zoomSlider: document.getElementById('zoomSlider'),
             zoomValue: document.getElementById('zoomValue'),
             modal: document.getElementById('cameraModal'),
-            modalCloseBtn: document.getElementById('modalClose')
+            modalCloseBtn: document.getElementById('modalClose'),
+            reader: document.getElementById('reader')
         };
     }
 
@@ -36,9 +37,16 @@ class BarcodeScanner {
 
     async startScanner() {
         try {
+            this.elements.modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            this.html5QrCode = new Html5Qrcode("reader");
+
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { 
-                    facingMode: "environment"
+                    facingMode: "environment",
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
                 } 
             });
             this.currentStream = stream;
@@ -49,16 +57,16 @@ class BarcodeScanner {
                 {
                     fps: 10,
                     qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.777778
                 },
                 (decodedText) => this.onScanSuccess(decodedText),
                 (error) => this.onScanFailure(error)
             );
 
-            this.elements.modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
         } catch (err) {
             console.error(err);
             alert('Ошибка доступа к камере: ' + err);
+            this.stopScanner();
         }
     }
 
@@ -85,11 +93,16 @@ class BarcodeScanner {
     }
 
     async stopScanner() {
-        await this.html5QrCode.stop();
+        if (this.html5QrCode) {
+            await this.html5QrCode.stop();
+            this.html5QrCode = null;
+        }
+        
         if (this.currentStream) {
             this.currentStream.getTracks().forEach(track => track.stop());
             this.currentStream = null;
         }
+
         this.elements.modal.classList.remove('active');
         document.body.style.overflow = '';
         this.elements.zoomControl.style.display = 'none';

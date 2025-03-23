@@ -113,6 +113,13 @@ button:active {
     justify-content: space-between;
     align-items: center;
     background-color: var(--surface-color);
+    z-index: 1001;
+}
+
+.modal-header h2 {
+    color: var(--primary-color);
+    margin: 0;
+    font-size: 1.5rem;
 }
 
 .modal-close {
@@ -122,18 +129,31 @@ button:active {
     font-size: 24px;
     cursor: pointer;
     padding: 10px;
+    width: auto;
 }
 
 .camera-container {
     flex: 1;
     position: relative;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: #000;
 }
 
 #reader {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+#reader video {
     width: 100%;
     height: 100%;
-    background-color: var(--surface-color);
+    object-fit: cover;
+}
+
+#reader div {
+    position: relative !important;
 }
 
 .zoom-controls {
@@ -142,7 +162,8 @@ button:active {
     left: 0;
     right: 0;
     padding: 20px;
-    background: linear-gradient(to top, var(--background-color), transparent);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+    z-index: 1002;
 }
 
 #zoomSlider {

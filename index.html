@@ -202,7 +202,8 @@
                     { facingMode: "environment" },
                     {
                         fps: 10,
-                        qrbox: { width: 250, height: 250 }
+                        qrbox: { width: 250, height: 250 },
+                        zoom: parseFloat(zoomSlider.value)
                     },
                     onScanSuccess,
                     onScanFailure
@@ -224,7 +225,8 @@
                             { facingMode: "environment" },
                             {
                                 fps: 10,
-                                qrbox: { width: 250, height: 250 }
+                                qrbox: { width: 250, height: 250 },
+                                zoom: parseFloat(zoomSlider.value)
                             },
                             onScanSuccess,
                             onScanFailure
@@ -249,7 +251,8 @@
                         { facingMode: "environment" },
                         {
                             fps: 10,
-                            qrbox: { width: 250, height: 250 }
+                            qrbox: { width: 250, height: 250 },
+                            zoom: parseFloat(zoomSlider.value)
                         },
                         onScanSuccess,
                         onScanFailure
@@ -270,6 +273,13 @@
             // Можно добавить обработку ошибок сканирования
             console.warn(`Ошибка сканирования: ${error}`);
         }
+
+        // Обработчик изменения значения зума
+        zoomSlider.addEventListener('input', () => {
+            html5QrCode.updateConfiguration({
+                zoom: parseFloat(zoomSlider.value) // Обновляем зум
+            });
+        });
 
         async function fetchBarcodeInfo(barcode) {
             try {
